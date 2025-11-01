@@ -1,6 +1,4 @@
 [build]
 builder = "static"
-
-[build]
 buildCommand = "cd frontend && npm install && npm run build"
 publishDirectory = "frontend/dist"
