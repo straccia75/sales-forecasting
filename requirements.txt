@@ -2,10 +2,10 @@ fastapi==0.111.0
 uvicorn[standard]==0.30.0
 pydantic==2.8.2
 python-dateutil==2.9.0.post0
-pandas==2.2.2
-numpy==1.26.4
-# Prophet puede tardar en compilar en algunos entornos; si falla, el backend hará fallback a "naive".
+pandas==2.1.4  # ← Downgraded pandas
+numpy==1.24.3  # ← Compatible numpy
 prophet==1.1.5
 holidays==0.52
-statsmodels>=0.14.2
-numba>=0.58
+
+# statsmodels>=0.14.2  
+# numba>=0.58
