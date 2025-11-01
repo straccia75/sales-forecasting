@@ -32,7 +32,7 @@ app = FastAPI(title="Sales Forecasting API", version="2.0.0")
 if APP_ENV.lower() == "prod":
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[o.strip() for o in ALLOWED_ORIGINS if o.strip()],
+        allow_origins = [o.strip() for o in ALLOWED_ORIGINS.split(",") if o.strip()],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

@@ -255,63 +255,75 @@ function formatAxis(val: number) {
 function buildSeries(): echarts.SeriesOption[] {
   const out: echarts.SeriesOption[] = []
 
+  // Base configuration for line series (DRY principle)
+  const baseLineConfig: Partial<echarts.SeriesOption> = {
+    type: 'line',
+    showSymbol: false,
+    sampling: 'lttb',
+    progressive: 4000,
+    emphasis: { focus: 'series' },
+    encode: { x: 0, y: 1 },
+    lineStyle: { width: 2 },
+  };
+
   for (const key of Object.keys(groupsPrepared.value)) {
     const s = groupsPrepared.value[key]
     if (!s.history.length && !s.forecast.length) continue
 
-    // Banda (opcional)
+    const seriesColor = s.color || undefined; // Get the specific color for the series
+
+    // 1. Banda de confianza (Optional)
     if (s.hasBand) {
+      const bandAreaStyle = { opacity: 0.12, color: seriesColor }; // Apply color to the band area
+
+      // Upper band (no line, fills area)
       out.push({
-        name: `${s.name} (upper)`,
+        name: `${s.name} (Upper Band)`, // Clearer name for inspection
         type: 'line',
         data: s.upper,
         showSymbol: false,
         silent: true,
         lineStyle: { width: 0 },
-        areaStyle: { opacity: 0.12 },
+        areaStyle: bandAreaStyle,
         encode: { x: 0, y: 1 },
         z: 1
       } as echarts.SeriesOption)
+
+      // Lower band (no line, uses areaStyle to "subtract" from upper band fill if appropriate, or just provides boundary)
       out.push({
-        name: `${s.name} (lower)`,
+        name: `${s.name} (Lower Band)`, // Clearer name for inspection
         type: 'line',
         data: s.lower,
         showSymbol: false,
         silent: true,
         lineStyle: { width: 0 },
-        areaStyle: { opacity: 0.12 },
+        areaStyle: bandAreaStyle,
         encode: { x: 0, y: 1 },
         z: 1
       } as echarts.SeriesOption)
     }
 
-    // Historia
+    // 2. Historia (History)
     out.push({
       name: s.name,
-      type: 'line',
       data: s.history,
-      showSymbol: false,
-      sampling: 'lttb',
-      progressive: 4000,
-      emphasis: { focus: 'series' },
-      lineStyle: { width: 2 },
-      encode: { x: 0, y: 1 },
-      z: 2
+      z: 2,
+      ...baseLineConfig,
+      itemStyle: { color: seriesColor }, // Apply color
+      lineStyle: { ...baseLineConfig.lineStyle, color: seriesColor },
     } as echarts.SeriesOption)
 
-    // Pronóstico
+    // 3. Pronóstico (Forecast)
     if (s.forecast.length) {
       out.push({
-        name: s.name,
-        type: 'line',
+        name: s.name, // Keep the same name to merge with history for legend selection
+        // name: `${s.name} (Forecast)`, // Uncomment this if you want separate legend toggles
         data: s.forecast,
-        showSymbol: false,
-        sampling: 'lttb',
-        progressive: 4000,
-        emphasis: { focus: 'series' },
-        lineStyle: { width: 2, type: 'dashed' },
-        encode: { x: 0, y: 1 },
-        z: 3
+        z: 3,
+        ...baseLineConfig,
+        itemStyle: { color: seriesColor }, // Apply color
+        // Override lineStyle for dashed effect and color
+        lineStyle: { ...baseLineConfig.lineStyle, type: 'dashed', color: seriesColor }, 
       } as echarts.SeriesOption)
     }
   }
@@ -319,20 +331,51 @@ function buildSeries(): echarts.SeriesOption[] {
 }
 
 function buildOption(): echarts.EChartsOption {
-  // Selección inicial por KEY
-  const selectedMap: Record<string, boolean> = {}
+  // 1. Enhanced Selection Logic
+  const allKeys = groupNames.value;
+
   const selectedSet = internalSelected.value.size > 0
     ? internalSelected.value
-    : new Set(groupNames.value.map(keyOf))
-  for (const n of groupNames.value) selectedMap[n] = selectedSet.has(keyOf(n))
+    : new Set(allKeys.map(keyOf)); // Default to all if none selected
+
+  const selectedMap = allKeys.reduce((acc, name) => {
+    acc[name] = selectedSet.has(keyOf(name));
+    return acc;
+  }, {} as Record<string, boolean>);
+
 
   const option: echarts.EChartsOption = {
-    grid: { containLabel: true, left: 16, right: 16, top: 8, bottom: 64 },
+    // 2. Add Toolbox Feature
+    toolbox: {
+      show: true,
+      feature: {
+        dataZoom: { yAxisIndex: 'none' },
+        restore: {},
+        saveAsImage: { name: 'chart_export' }
+      }
+    },
+    grid: { containLabel: true, left: 16, right: 16, top: 32, bottom: 64 }, // Adjusted top for toolbox
+    // 3. Robust Tooltip
     tooltip: {
       trigger: 'axis',
       confine: true,
       axisPointer: { type: 'line' },
-      valueFormatter: (v: any) => (typeof v === 'number' ? nf.value.format(v) : String(v))
+      formatter: (params: any) => {
+        // Ensure params is an array and not empty
+        if (!params || params.length === 0) return '';
+        
+        // Assuming params[0].value[0] is the timestamp
+        let content = `${echarts.time.format(params[0].value[0], '{yyyy}-{MM}-{dd} {hh}:{mm}:{ss}')}<br/>`;
+
+        // Sort by value (e.g., descending) for better comparison
+        params.sort((a: any, b: any) => b.value[1] - a.value[1]); 
+
+        params.forEach((item: any) => {
+          const value = typeof item.value[1] === 'number' ? nf.value.format(item.value[1]) : String(item.value[1]);
+          content += `${item.marker} ${item.seriesName}: **${value}**<br/>`;
+        });
+        return content;
+      }
     },
     legend: {
       type: 'scroll',
@@ -344,13 +387,16 @@ function buildOption(): echarts.EChartsOption {
       axisLabel: { hideOverlap: true },
       boundaryGap: false
     },
+    // 4. Enhanced YAxis
     yAxis: {
       type: 'value',
       name: props.yAxisLabel || undefined,
       nameLocation: 'end',
       nameGap: 10,
       axisLabel: { margin: 8, formatter: (val: number) => formatAxis(val) },
-      splitLine: { show: true }
+      splitLine: { show: true },
+      min: props.yAxisMin !== undefined ? props.yAxisMin : 'dataMin', // Optional min
+      max: props.yAxisMax !== undefined ? props.yAxisMax : 'dataMax'  // Optional max
     },
     dataZoom: [
       { type: 'inside', xAxisIndex: 0, throttle: 50 },
