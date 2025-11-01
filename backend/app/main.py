@@ -754,3 +754,7 @@ def forecast(req: ForecastRequest):
         metrics_overall=metrics,
         forecast=out_rows,
     )
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
