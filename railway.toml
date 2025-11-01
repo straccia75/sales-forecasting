@@ -1,9 +1,6 @@
 [build]
 builder = "static"
 
-[build.operations]
-build = "cd frontend && npm install && npm run build" 
-output = "frontend/dist"
-
-[deploy]
-public = true
+[build]
+buildCommand = "cd frontend && npm install && npm run build"
+publishDirectory = "frontend/dist"
