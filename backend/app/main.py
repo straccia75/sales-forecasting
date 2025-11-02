@@ -1,4 +1,4 @@
-# main.py  — Prophet-only, hardened
+# Prophet-only, hardened
 import os
 import math
 from typing import List, Optional, Dict, Any
@@ -60,12 +60,12 @@ class ForecastParams(BaseModel):
     confidence: Optional[float] = 0.8
     frequency: Optional[str] = None   # D/W/M or None => infer
     country_holidays: Optional[str] = None
-    # Kept for compatibility with your frontend; we now force Prophet but accept this field
+    # Kept for compatibility with frontend; I now force Prophet but accept this field
     model_preference: Optional[str] = "prophet"
     exog_future_policy: Optional[str] = "ffill"  # kept for compatibility (not used by Prophet)
 
 class ForecastRequest(BaseModel):
-    # 'schema' name can shadow BaseModel.attr; allow it explicitly
+    # 'schema' name can shadow BaseModel.attr; allowing it explicitly
     model_config = {
         "protected_namespaces": (),
         "populate_by_name": True,
@@ -105,11 +105,11 @@ def _coerce_datetime(s: pd.Series) -> pd.Series:
     """
     Robust date coercion:
     - Detects epoch seconds/milliseconds and Excel serials.
-    - Normalizes strings (quita sufijos ordinales, normaliza separadores/espacios).
-    - Prueba múltiples estrategias: default, dayfirst, yearfirst, formatos comunes.
-    - Entiende meses en Español/Italiano (mapeados a inglés).
-    - Elige el parseo con mayor % válido; tie-break por rango de años y unicidad.
-    - Hace tz->naive y loguea ejemplos de fallos.
+    - Normalizes strings
+    - Tries different strategies: default, dayfirst, yearfirst, common formats.
+    - Understand date formats.
+    - Picks best rated parsing; tie-break for years range.
+    - Does tz->naive y failed examples.
     """
     import re
     import numpy as np
@@ -123,7 +123,7 @@ def _coerce_datetime(s: pd.Series) -> pd.Series:
 
     def _tz_naive(dt: pd.Series) -> pd.Series:
         try:
-            # si viene con tz -> quitar
+            # if it comes with tz -> remove
             return dt.dt.tz_convert(None)
         except Exception:
             try:
@@ -138,7 +138,7 @@ def _coerce_datetime(s: pd.Series) -> pd.Series:
         if valid_ratio == 0.0:
             return (0.0, -1.0, 0.0)
         years = dt[valid].dt.year
-        # penaliza años fuera de 1900..2100
+        #Skips years out of 1900..2100
         in_range = ((years >= 1900) & (years <= 2100)).mean()
         uniq_ratio = dt[valid].nunique() / max(1, valid.sum())
         return (valid_ratio, float(in_range), float(uniq_ratio))
@@ -147,7 +147,7 @@ def _coerce_datetime(s: pd.Series) -> pd.Series:
         invalid = dt.isna()
         n = int(invalid.sum())
         if n:
-            # Muestra ejemplos representativos
+            # Representative Examples
             examples = (
                 src[invalid]
                 .dropna()
@@ -162,13 +162,13 @@ def _coerce_datetime(s: pd.Series) -> pd.Series:
             )
 
     # --- fast-path: numeric epochs / Excel ----------------------------------
-    # ¿Mayormente numérico?
+    # Numeric?
     nums = _to_numeric(src)
     numeric_share = float(nums.notna().mean())
     candidates = []
 
     if numeric_share >= 0.85:
-        # Excel serial típico ~ 20k..60k
+        # Excel typical serial ~ 20k..60k
         serial_mask = nums.between(20000, 60000)
         if serial_mask.any():
             try:
@@ -178,11 +178,11 @@ def _coerce_datetime(s: pd.Series) -> pd.Series:
             except Exception:
                 pass
 
-        # Epoch ms / s por magnitud
+        # Epoch ms / s by magnitude
         finite = np.isfinite(nums)
         if finite.any():
             q95 = float(np.nanquantile(nums[finite], 0.95))
-            # Heurística: >1e11 ~ ms; >1e9 ~ s
+            # Heuristic: >1e11 ~ ms; >1e9 ~ s
             if q95 > 1e11:
                 try:
                     dt_ms = pd.to_datetime(nums, unit="ms", utc=True)
@@ -197,19 +197,19 @@ def _coerce_datetime(s: pd.Series) -> pd.Series:
                     pass
 
     # --- string normalization ------------------------------------------------
-    # Solo normaliza strings donde haga falta
+    # just normalizes where needed
     as_str = src.astype(str)
 
-    # Quita sufijos ordinales (1st, 2nd, 3rd, 4th, 1º, 2ª, etc.)
+    # Removes ordinal sufixs (1st, 2nd, 3rd, 4th, 1º, 2ª, etc.)
     norm = as_str.str.replace(
         r"(\b\d{1,2})(?:st|nd|rd|th|º|ª)\b", r"\1", regex=True, flags=re.IGNORECASE
     )
 
-    # Normaliza espacios y separadores comunes
-    norm = norm.str.replace(r"[.\u00B7]", "/", regex=True)  # puntos -> '/'
+    # Normalizing spaces and commons
+    norm = norm.str.replace(r"[.\u00B7]", "/", regex=True)  # dots -> '/'
     norm = norm.str.replace(r"\s+", " ", regex=True).str.strip()
 
-    # Meses ES/IT -> EN (para que dateutil los entienda mejor)
+    # Months ES/IT -> EN (so dateutils understand better)
     month_map = {
         # Español
         "enero": "January", "ene": "Jan",
@@ -238,7 +238,7 @@ def _coerce_datetime(s: pd.Series) -> pd.Series:
         "novembre": "November", "nov": "Nov",
         "dicembre": "December", "dic": "Dec",
     }
-    # Reemplazo insensible a mayúsculas
+    # replacing caps
     def _replace_months(text: str) -> str:
         t = text
         for k, v in month_map.items():
@@ -262,7 +262,7 @@ def _coerce_datetime(s: pd.Series) -> pd.Series:
     _try("dayfirst", dayfirst=True)
     _try("yearfirst", yearfirst=True)
 
-    # formatos comunes (evita ambigüedad dd/mm vs mm/dd)
+    #  common formats (avoids anbiguity dd/mm vs mm/dd)
     for fmt_label, fmt in [
         ("fmt_%d/%m/%Y", "%d/%m/%Y"),
         ("fmt_%m/%d/%Y", "%m/%d/%Y"),
@@ -277,7 +277,7 @@ def _coerce_datetime(s: pd.Series) -> pd.Series:
         except Exception:
             pass
 
-    # dateparser (opcional) — maneja mejor idiomas y textos "sucios"
+    # dateparser (optional) — handles languages better and dirty texts
     try:
         import dateparser  # type: ignore
         def _dp_parse(x: str):
@@ -288,22 +288,22 @@ def _coerce_datetime(s: pd.Series) -> pd.Series:
     except Exception:
         pass
 
-    # Une todas las candidatas (numéricas + string)
+    # Merging all candidates (numéricas + string)
     candidates += attempts
 
     if not candidates:
-        # último recurso: comportamiento previo
+        # Last resource : previous behavior
         dt = pd.to_datetime(src, errors="coerce", utc=True)
         dt = _tz_naive(dt)
         _log_invalid(dt, "coerce_datetime(default)")
         return dt
 
-    # Escoge la mejor por (valid_ratio, in_range, uniq_ratio)
+    #Picks the best (valid_ratio, in_range, uniq_ratio)
     scored = [(name, dt, _score_series(dt)) for (name, dt) in candidates]
     scored.sort(key=lambda x: x[2], reverse=True)
     best_name, best_dt, best_score = scored[0]
 
-    # Log informativo y ejemplos inválidos
+    # Log to inform and invalidad examples
     logger.info(
         "coerce_datetime picked '%s' with scores (valid=%.3f, in_range=%.3f, uniq=%.3f)",
         best_name, best_score[0], best_score[1], best_score[2]
