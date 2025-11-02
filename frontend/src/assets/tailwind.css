@@ -239,3 +239,37 @@ body { @apply bg-slate-950; }
 .fade-vert-enter-from, .fade-vert-leave-to { opacity: 0; transform: translateY(-4px); }
 
 }
+
+.actions { display: flex; align-items: center; gap: 12px; }
+
+.progress-wrap { display: flex; align-items: center; gap: 8px; width: 220px; }
+
+.progress {
+  position: relative;
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.08);
+  overflow: hidden;
+}
+.progress::before {
+  content: '';
+  position: absolute; inset: 0 auto 0 0;
+  width: var(--w, 0%);
+  background: #3b82f6; /* use your brand color */
+  border-radius: inherit;
+  transition: width .2s linear;
+}
+
+/* Indeterminate animation */
+.progress.indeterminate::before {
+  width: 30%;
+  animation: indeterminate 1s infinite linear;
+}
+@keyframes indeterminate {
+  0% { left: 0% }
+  50% { left: 70% }
+  100% { left: 0% }
+}
+
+.progress-text { font-size: 12px; color: rgba(0,0,0,0.6); min-width: 3ch; text-align: right; }

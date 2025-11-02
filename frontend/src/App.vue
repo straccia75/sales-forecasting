@@ -6,7 +6,7 @@
       <nav class="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
         <div class="flex items-center gap-2">
           <div class="h-6 w-6 rounded-lg bg-slate-900"></div>
-          <span class="text-sm font-semibold tracking-tight">Sales Forecasting AI</span>
+          <span class="text-sm font-semibold tracking-tight">Sales Forecasting App</span>
         </div>
         <div class="flex items-center gap-4 text-sm">
           <a href="#" class="text-slate-600 hover:text-slate-900">Docs</a>
@@ -117,13 +117,16 @@
           </div>
 
           <!-- Chart -->
-          <div class="overflow-hidden rounded-xl border">
-            <ForecastChart
-              v-if="resp"
-              :response="resp"
-              v-model:activeGroups="activeGroups"
-            />
-          </div>
+            <div
+              class="overflow-hidden rounded-xl border"
+              style="--fc-height: 20000px; --fc-min-height: 600px;"
+            >
+              <ForecastChart
+                v-if="resp"
+                :response="resp"
+                v-model:activeGroups="activeGroups"
+              />
+            </div>
 
           <!-- Warnings -->
           <div v-if="resp?.warnings?.length" class="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-amber-800">

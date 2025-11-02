@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen bg-gray-50">
     <div class="max-w-5xl mx-auto p-6">
-      <h1 class="text-2xl font-semibold mb-4">Sales Forecasting AI (MVP)</h1>
+      <h1 class="text-2xl font-semibold mb-4">Sales Forecasting App</h1>
       <CsvUploader />
     </div>
   </div>

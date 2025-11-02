@@ -40,7 +40,30 @@
       <button v-if="rows.length" @click="reset" class="absolute right-3 top-3 rounded-md border px-2 py-1 text-xs hover:bg-slate-50">
         Reset
       </button>
+    
+    <!-- ========================= DEMO DATASETS ========================= -->
+    <div class="rounded-xl border p-4">
+      <div class="mb-1 text-xs font-medium text-slate-500">Use a demo dataset</div>
+      <div class="grid grid-cols-1 gap-2 md:grid-cols-3">
+        <select v-model="selectedDemoId" class="w-full rounded-lg border bg-white p-2 text-sm">
+          <option disabled value="">Select a demo dataset</option>
+          <option v-for="d in demoOptions" :key="d.id" :value="d.id">{{ d.name }}</option>
+        </select>
+        <button
+          @click="loadDemo"
+          :disabled="!selectedDemoId || loadingDemo"
+          class="rounded-lg border px-3 py-2 text-sm hover:bg-slate-50"
+        >
+          {{ loadingDemo ? 'Loading…' : 'Load demo' }}
+        </button>
+        <div class="text-xs text-slate-500 self-center" v-if="currentDemo && headers.length">
+          Loaded: <strong>{{ fileName }}</strong>
+        </div>
+        <div v-if="demoError" class="text-xs text-red-600 md:col-span-3">{{ demoError }}</div>
+      </div>
     </div>
+
+</div>
 
     <!-- ========================= MAPPING ========================= -->
     <div v-if="headers.length" class="grid gap-4 md:grid-cols-2">
@@ -155,6 +178,39 @@
       >
         {{ busy ? 'Running…' : 'Forecast' }}
       </button>
+
+      <div class="actions">
+  <button @click="run" :disabled="isRunning">
+    {{ isRunning ? 'Running…' : 'Run' }}
+  </button>
+
+  <!-- Determinate when progress is a number (0–100) -->
+  <div
+    v-if="isRunning && typeof progress === 'number'"
+    class="progress-wrap"
+    :title="`${progress}%`"
+  >
+    <div
+      class="progress"
+      role="progressbar"
+      :aria-valuemin="0"
+      :aria-valuemax="100"
+      :aria-valuenow="progress"
+      :style="{ '--w': progress + '%' }"
+    />
+    <span class="progress-text">{{ progress }}%</span>
+  </div>
+
+  <!-- Indeterminate when you can’t compute % -->
+  <div
+    v-else-if="isRunning"
+    class="progress-wrap"
+    title="Working…"
+  >
+    <div class="progress indeterminate" role="progressbar" aria-busy="true" />
+    <span class="progress-text">Working…</span>
+  </div>
+</div>
       <span v-if="responseWarnings.length" class="text-xs text-amber-700">Check warnings below</span>
     </div>
 
@@ -188,7 +244,7 @@ type ForecastResponse = {
  *  - apiBase (optional): override backend base; else read VITE_API_BASE from .env.local
  *  - emits: 'ready' with the entire ForecastResponse so parent can render chart
  */
-const props = defineProps<{ apiBase?: string }>()
+const props = defineProps<{ apiBase?: string; demoDatasets?: { id:string; name:string; url:string }[] }>()
 const emit  = defineEmits<{ (e:'ready', payload:{ response: ForecastResponse }): void }>()
 
 /** API base resolution order: prop > .env.local (VITE_API_BASE) > '' (same-origin) */
@@ -225,6 +281,40 @@ const responseWarnings = ref<string[]>([])
 const busy  = ref(false)
 const canSubmit = computed(() => !!rows.value.length && map.value.date && map.value.target)
 
+
+/** DEMO DATASETS (optional, works like a virtual upload) */
+type DemoItem = { id:string; name:string; url:string }
+const defaultDemoOptions = ref<DemoItem[]>([
+  { id:'walmart-retail-sales', name:'Walmart Sales', url:'/demo/walmart_sales.csv' },
+  { id:'retail-sales-multi-store', name:'WOmart Retail Sales', url:'/demo/WOmart_Data_Sales.csv' },
+  { id:'retail-forecasting', name:'Sales Dataset Superstore', url:'/demo/Sales_dataset.csv' }
+])
+const demoOptions = computed<DemoItem[]>(() => (props.demoDatasets?.length ? props.demoDatasets! : defaultDemoOptions.value))
+const selectedDemoId = ref<string>('')
+const loadingDemo = ref(false)
+const demoError = ref<string>('')
+const currentDemo = computed<DemoItem | null>(() => demoOptions.value.find(d => d.id === selectedDemoId.value) || null)
+
+async function loadDemo(){
+  demoError.value = ''
+  if(!currentDemo.value) return
+  try{
+    loadingDemo.value = true
+    const res = await fetch(currentDemo.value.url, { cache:'no-store' })
+    if(!res.ok) throw new Error(`Failed to load demo CSV (${res.status})`)
+    const text = await res.text()
+    const parsed = Papa.parse<Row>(text, { header:true, skipEmptyLines:true })
+    rows.value = (parsed.data as Row[]) || []
+    headers.value = parsed.meta.fields || []
+    fileName.value = `${currentDemo.value.name}.csv`
+    if (map.value.group_by && !headers.value.includes(map.value.group_by)) map.value.group_by = ''
+    runStore.value = ''
+  }catch(err:any){
+    demoError.value = String(err?.message || err) || 'Could not load demo dataset.'
+  }finally{
+    loadingDemo.value = false
+  }
+}
 /** FILE HANDLERS */
 function onDrop(e:DragEvent){ const f = e.dataTransfer?.files?.[0]; if(f) readFile(f) }
 function onFile(e:any){     const f = e.target?.files?.[0];          if(f) readFile(f) }
@@ -249,6 +339,36 @@ function reset(){
   map.value  = { date:'', target:'', group_by:'', regressors:[] }
   runStore.value = ''; responseWarnings.value = []
 }
+
+const isRunning = ref(false)
+// Use a number 0–100 for determinate mode, or set to null for indeterminate
+const progress = ref<number | null>(null)
+
+async function run() {
+  isRunning.value = true
+  // EXAMPLE 1: known steps -> determinate
+  // const steps = 10
+  // for (let i = 0; i < steps; i++) {
+  //   await doStep(i)
+  //   progress.value = Math.round(((i + 1) / steps) * 100)
+  // }
+  // isRunning.value = false
+
+  // EXAMPLE 2: unknown length -> indeterminate
+  progress.value = null
+  await doSomethingLong()
+  isRunning.value = false
+}
+
+// Hook these if applicable:
+// worker.onmessage = (e) => {
+//   if (e.data.type === 'progress') progress.value = e.data.value // 0–100
+//   if (e.data.type === 'done') { isRunning.value = false }
+// }
+// xhr.upload.onprogress = (e) => {
+//   if (e.lengthComputable) progress.value = Math.round((e.loaded / e.total) * 100)
+// }
+
 
 /** SUBMIT to FastAPI `/forecast` */
 async function submit(){

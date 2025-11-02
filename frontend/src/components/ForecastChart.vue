@@ -252,10 +252,21 @@ function formatAxis(val: number) {
 }
 
 /** ---------- ECharts Options ---------- */
+// helper: build "upper - lower" data aligned by x
+function minusSeries(upper: [any, number|null][], lower: [any, number|null][]) {
+  const out: [any, number|null][] = []
+  const n = Math.min(upper.length, lower.length)
+  for (let i = 0; i < n; i++) {
+    const xU = upper[i][0], yU = upper[i][1]
+    const xL = lower[i][0], yL = lower[i][1]
+    // assume x's are aligned; if not, align by your own key
+    out.push([xU, (yU == null || yL == null) ? null : (yU as number) - (yL as number)])
+  }
+  return out
+}
+
 function buildSeries(): echarts.SeriesOption[] {
   const out: echarts.SeriesOption[] = []
-
-  // Base configuration for line series (DRY principle)
   const baseLineConfig: Partial<echarts.SeriesOption> = {
     type: 'line',
     showSymbol: false,
@@ -264,130 +275,151 @@ function buildSeries(): echarts.SeriesOption[] {
     emphasis: { focus: 'series' },
     encode: { x: 0, y: 1 },
     lineStyle: { width: 2 },
-  };
+  }
 
   for (const key of Object.keys(groupsPrepared.value)) {
     const s = groupsPrepared.value[key]
     if (!s.history.length && !s.forecast.length) continue
 
-    const seriesColor = s.color || undefined; // Get the specific color for the series
+    const seriesColor = s.color || undefined
 
-    // 1. Banda de confianza (Optional)
-    if (s.hasBand) {
-      const bandAreaStyle = { opacity: 0.12, color: seriesColor }; // Apply color to the band area
+    // --- Confidence band (fill BETWEEN lower & upper) ---
+    if (s.hasBand && s.upper?.length && s.lower?.length) {
+      const stackKey = `${s.name}__band`
+      const bandFill = { color: seriesColor, opacity: 0.12 }
 
-      // Upper band (no line, fills area)
+      // 1) Lower baseline (transparent, no fill)
       out.push({
-        name: `${s.name} (Upper Band)`, // Clearer name for inspection
-        type: 'line',
-        data: s.upper,
-        showSymbol: false,
-        silent: true,
-        lineStyle: { width: 0 },
-        areaStyle: bandAreaStyle,
-        encode: { x: 0, y: 1 },
-        z: 1
-      } as echarts.SeriesOption)
-
-      // Lower band (no line, uses areaStyle to "subtract" from upper band fill if appropriate, or just provides boundary)
-      out.push({
-        name: `${s.name} (Lower Band)`, // Clearer name for inspection
+        name: `${s.name} (band-base)`,
         type: 'line',
         data: s.lower,
-        showSymbol: false,
-        silent: true,
-        lineStyle: { width: 0 },
-        areaStyle: bandAreaStyle,
         encode: { x: 0, y: 1 },
-        z: 1
+        lineStyle: { width: 0 },
+        symbol: 'none',
+        stack: stackKey,
+        // keep this out of UX chrome
+        tooltip: { show: false },
+        emphasis: { disabled: true },
+        z: 1,
+      } as echarts.SeriesOption)
+
+      // 2) Band thickness = upper - lower (this is what gets filled)
+      out.push({
+        name: `${s.name} (band)`,
+        type: 'line',
+        data: minusSeries(s.upper, s.lower),
+        encode: { x: 0, y: 1 },
+        lineStyle: { width: 0 },
+        symbol: 'none',
+        stack: stackKey,
+        areaStyle: bandFill,
+        tooltip: { show: false },
+        emphasis: { disabled: true },
+        z: 1,
       } as echarts.SeriesOption)
     }
 
-    // 2. Historia (History)
+    // --- History ---
     out.push({
       name: s.name,
       data: s.history,
       z: 2,
       ...baseLineConfig,
-      itemStyle: { color: seriesColor }, // Apply color
-      lineStyle: { ...baseLineConfig.lineStyle, color: seriesColor },
+      itemStyle: { color: seriesColor },
+      lineStyle: { ...(baseLineConfig.lineStyle as any), color: seriesColor },
     } as echarts.SeriesOption)
 
-    // 3. Pronóstico (Forecast)
+    // --- Forecast ---
     if (s.forecast.length) {
       out.push({
-        name: s.name, // Keep the same name to merge with history for legend selection
-        // name: `${s.name} (Forecast)`, // Uncomment this if you want separate legend toggles
+        name: s.name, // merges with history in legend
         data: s.forecast,
         z: 3,
         ...baseLineConfig,
-        itemStyle: { color: seriesColor }, // Apply color
-        // Override lineStyle for dashed effect and color
-        lineStyle: { ...baseLineConfig.lineStyle, type: 'dashed', color: seriesColor }, 
+        itemStyle: { color: seriesColor },
+        lineStyle: { ...(baseLineConfig.lineStyle as any), type: 'dashed', color: seriesColor },
       } as echarts.SeriesOption)
     }
   }
   return out
 }
 
-function buildOption(): echarts.EChartsOption {
-  // 1. Enhanced Selection Logic
-  const allKeys = groupNames.value;
 
+function buildOption(): echarts.EChartsOption {
+  // 1) Enhanced Selection Logic (base selection for real groups)
+  const allKeys = groupNames.value
   const selectedSet = internalSelected.value.size > 0
     ? internalSelected.value
-    : new Set(allKeys.map(keyOf)); // Default to all if none selected
+    : new Set(allKeys.map(keyOf))
 
-  const selectedMap = allKeys.reduce((acc, name) => {
-    acc[name] = selectedSet.has(keyOf(name));
-    return acc;
-  }, {} as Record<string, boolean>);
+  const baseSelectedMap = allKeys.reduce((acc, name) => {
+    acc[name] = selectedSet.has(keyOf(name))
+    return acc
+  }, {} as Record<string, boolean>)
 
+  // 2) Build series first (so we can hide helper bands in legend)
+  const series = buildSeries()
 
+  // 3) Auto-hide band helpers in legend selection
+  //    Matches names like "(band)", "(band-base)", "(Upper Band)", "(Lower Band)"
+  const hideBandsRe = /\((?:band(?:-base)?|upper\s*band|lower\s*band)\)$/i
+  const selectedMap: Record<string, boolean> = { ...baseSelectedMap }
+  for (const s of series) {
+    const name = (s as any)?.name
+    if (!name) continue
+    // If we don't already have an entry, default to true unless it's a band helper
+    if (!(name in selectedMap)) {
+      selectedMap[name] = !hideBandsRe.test(name)
+    } else if (hideBandsRe.test(name)) {
+      selectedMap[name] = false
+    }
+  }
+
+  // 4) Option B layout: legend at bottom, room for slider above it, toolbox top-right
   const option: echarts.EChartsOption = {
-    // 2. Add Toolbox Feature
     toolbox: {
       show: true,
+      right: 8,
+      top: 8,
       feature: {
         dataZoom: { yAxisIndex: 'none' },
         restore: {},
         saveAsImage: { name: 'chart_export' }
       }
     },
-    grid: { containLabel: true, left: 16, right: 16, top: 32, bottom: 64 }, // Adjusted top for toolbox
-    // 3. Robust Tooltip
+    grid: { containLabel: true, left: 48, right: 16, top: 56, bottom: 72 },
+
     tooltip: {
       trigger: 'axis',
       confine: true,
       axisPointer: { type: 'line' },
       formatter: (params: any) => {
-        // Ensure params is an array and not empty
-        if (!params || params.length === 0) return '';
-        
-        // Assuming params[0].value[0] is the timestamp
-        let content = `${echarts.time.format(params[0].value[0], '{yyyy}-{MM}-{dd} {hh}:{mm}:{ss}')}<br/>`;
-
-        // Sort by value (e.g., descending) for better comparison
-        params.sort((a: any, b: any) => b.value[1] - a.value[1]); 
-
+        if (!params || params.length === 0) return ''
+        let content = `${echarts.time.format(params[0].value[0], '{yyyy}-{MM}-{dd} {hh}:{mm}:{ss}')}<br/>`
+        params.sort((a: any, b: any) => b.value[1] - a.value[1])
         params.forEach((item: any) => {
-          const value = typeof item.value[1] === 'number' ? nf.value.format(item.value[1]) : String(item.value[1]);
-          content += `${item.marker} ${item.seriesName}: **${value}**<br/>`;
-        });
-        return content;
+          const value = typeof item.value[1] === 'number' ? nf.value.format(item.value[1]) : String(item.value[1])
+          content += `${item.marker} ${item.seriesName}: **${value}**<br/>`
+        })
+        return content
       }
     },
+
     legend: {
       type: 'scroll',
-      top: 0,
-      selected: selectedMap
+      bottom: 8,                 // ← Option B: bottom legend
+      selected: selectedMap,
+      icon: 'roundRect',
+      itemWidth: 12,
+      itemHeight: 8,
     },
+
     xAxis: {
       type: 'time',
       axisLabel: { hideOverlap: true },
       boundaryGap: false
     },
-    // 4. Enhanced YAxis
+
     yAxis: {
       type: 'value',
       name: props.yAxisLabel || undefined,
@@ -395,15 +427,19 @@ function buildOption(): echarts.EChartsOption {
       nameGap: 10,
       axisLabel: { margin: 8, formatter: (val: number) => formatAxis(val) },
       splitLine: { show: true },
-      min: props.yAxisMin !== undefined ? props.yAxisMin : 'dataMin', // Optional min
-      max: props.yAxisMax !== undefined ? props.yAxisMax : 'dataMax'  // Optional max
+      min: props.yAxisMin !== undefined ? props.yAxisMin : 'dataMin',
+      max: props.yAxisMax !== undefined ? props.yAxisMax : 'dataMax'
     },
+
+    // Slider sits above the bottom legend, so give it some bottom offset.
     dataZoom: [
       { type: 'inside', xAxisIndex: 0, throttle: 50 },
-      { type: 'slider', xAxisIndex: 0, show: true, bottom: 8, height: 32, showDataShadow: true, brushSelect: false }
+      { type: 'slider', xAxisIndex: 0, show: true, bottom: 40, height: 32, showDataShadow: true, brushSelect: false }
     ],
-    series: buildSeries()
+
+    series
   }
+
   return option
 }
 
@@ -512,12 +548,21 @@ const ariaLabel = computed(() => props.ariaLabel ?? 'Sales forecast chart')
 
 .fc-chart {
   width: 100%;
-  min-height: 380px;
   min-width: 0;
   display: block;
   background: #fff;
   border-radius: 6px;
   box-shadow: inset 0 0 0 1px rgba(0,0,0,0.03);
+
+  /* Adaptable sizing via CSS vars with sane defaults */
+  height: var(--fc-height, auto);
+  min-height: var(--fc-min-height, 420px);
+  max-height: var(--fc-max-height, 85vh);
+}
+@media (max-width: 768px) {
+  .fc-chart {
+    min-height: var(--fc-min-height-sm, 60vh);
+  }
 }
 
 .fc-empty {
