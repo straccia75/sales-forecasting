@@ -170,23 +170,21 @@
     </div>
 
     <!-- ========================= SUBMIT ========================= -->
-    <div v-if="headers.length" class="flex items-center gap-3">
-      <button
-        :disabled="!canSubmit || busy"
-        @click="submit"
-        :class="['rounded-lg px-4 py-2 text-sm font-medium text-white shadow-sm transition', busy ? 'bg-slate-400' : 'bg-slate-900 hover:bg-slate-800']"
-      >
-        {{ busy ? 'Running…' : 'Forecast' }}
-      </button>
-
-      <div class="actions">
-  <button @click="run" :disabled="isRunning">
-    {{ isRunning ? 'Running…' : 'Run' }}
+<div v-if="headers.length" class="flex items-center gap-3">
+  <button
+    :disabled="!canSubmit || busy"
+    @click="submit"
+    :class="[
+      'rounded-lg px-4 py-2 text-sm font-medium text-white shadow-sm transition',
+      busy ? 'bg-slate-400' : 'bg-slate-900 hover:bg-slate-800'
+    ]"
+  >
+    {{ busy ? 'Running…' : 'Forecast' }}
   </button>
 
-  <!-- Determinate when progress is a number (0–100) -->
+  <!-- Determinate (0–100) -->
   <div
-    v-if="isRunning && typeof progress === 'number'"
+    v-if="busy && typeof progress === 'number'"
     class="progress-wrap"
     :title="`${progress}%`"
   >
@@ -201,18 +199,17 @@
     <span class="progress-text">{{ progress }}%</span>
   </div>
 
-  <!-- Indeterminate when you can’t compute % -->
-  <div
-    v-else-if="isRunning"
-    class="progress-wrap"
-    title="Working…"
-  >
+  <!-- Indeterminate -->
+  <div v-else-if="busy" class="progress-wrap" title="Working…">
     <div class="progress indeterminate" role="progressbar" aria-busy="true" />
     <span class="progress-text">Working…</span>
   </div>
+
+  <span v-if="responseWarnings.length" class="text-xs text-amber-700">
+    Check warnings below
+  </span>
 </div>
-      <span v-if="responseWarnings.length" class="text-xs text-amber-700">Check warnings below</span>
-    </div>
+
 
     <!-- ========================= WARNINGS ========================= -->
     <div v-if="responseWarnings.length" class="rounded-xl border border-amber-300 bg-amber-50 p-3 text-amber-800">
@@ -368,7 +365,6 @@ async function run() {
 // xhr.upload.onprogress = (e) => {
 //   if (e.lengthComputable) progress.value = Math.round((e.loaded / e.total) * 100)
 // }
-
 
 /** SUBMIT to FastAPI `/forecast` */
 async function submit(){
