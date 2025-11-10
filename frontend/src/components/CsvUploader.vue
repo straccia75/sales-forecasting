@@ -66,10 +66,50 @@
 </div>
 
     <!-- ========================= MAPPING ========================= -->
+
+    <!-- SAMPLE PREVIEW -->
+        <div v-if="headers.length && rows.length" class="rounded-xl border p-4">
+          <div class="mb-2 text-xs font-medium text-slate-500">
+            Sample preview (first {{ previewRows.length }} rows)
+          </div>
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-xs">
+              <thead>
+                <tr>
+                  <th
+                    v-for="h in headers"
+                    :key="'ph'+h"
+                    class="border-b p-2 text-left font-medium text-slate-600"
+                  >
+                    {{ h }}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(r, i) in previewRows"
+                  :key="'pr'+i"
+                  class="border-b last:border-0"
+                >
+                  <td
+                    v-for="h in headers"
+                    :key="'pc'+h"
+                    class="p-2 text-slate-700"
+                  >
+                    {{ r[h] }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
     <div v-if="headers.length" class="grid gap-4 md:grid-cols-2">
       <!-- REQUIRED: Date column -->
       <div class="rounded-xl border p-4">
-        <div class="mb-1 text-xs font-medium text-slate-500">Date column</div>
+        <div class="mb-1 text-xs font-medium text-slate-500">
+          Date column <span class="text-rose-600">*</span>
+        </div>
         <select v-model="map.date" class="w-full rounded-lg border bg-white p-2 text-sm">
           <option disabled value="">Select date column</option>
           <option v-for="h in headers" :key="'d'+h" :value="h">{{ h }}</option>
@@ -123,14 +163,23 @@
       <div class="rounded-xl border p-4">
         <div class="mb-1 text-xs font-medium text-slate-500">Model</div>
         <select v-model="params.model_preference" class="w-full rounded-lg border bg-white p-2 text-sm">
-          <option value="auto">auto</option>
+          <option value="auto" disabled title="Temporarily disabled">auto</option>
           <option value="prophet">prophet</option>
-          <option value="ets">ets</option>
-          <option value="sarimax">sarimax</option>
-          <option value="seasonal-naive">seasonal-naive</option>
-          <option value="auto-ets-sarimax">auto-ets-sarimax</option>
+          <option value="ets" disabled title="Temporarily disabled">ets</option>
+          <option value="sarimax" disabled title="Temporarily disabled">sarimax</option>
+          <option value="seasonal-naive" disabled title="Temporarily disabled">seasonal-naive</option>
+          <option value="auto-ets-sarimax" disabled title="Temporarily disabled">auto-ets-sarimax</option>
         </select>
-        <p v-if="params.model_preference==='ets'" class="mt-1 text-xs text-slate-500">ETS ignores regressors.</p>
+
+        <!-- Helper note explaining why others are disabled -->
+        <p class="mt-1 text-xs text-slate-500">
+          Other models are visible but temporarily disabled. The system will run Prophet.
+        </p>
+
+        <!-- Keep your existing ETS note intact -->
+        <p v-if="params.model_preference==='ets'" class="mt-1 text-xs text-slate-500">
+          ETS ignores regressors.
+        </p>
       </div>
 
       <!-- Forecast horizon -->
@@ -147,15 +196,16 @@
         <!-- Tweak: closer to 1 = wider uncertainty band. -->
       </div>
 
-      <!-- Frequency override (usually leave auto) -->
+     <!-- Frequency - //I DISABLED AUTO FOR NOW SINCE DAILY FORECASTING NEEDS SOME TUNNING ON THE BACKEND/// -->
       <div class="rounded-xl border p-4">
         <div class="mb-1 text-xs font-medium text-slate-500">Frequency</div>
         <select v-model="params.frequency" class="w-full rounded-lg border bg-white p-2 text-sm">
-          <option value="auto">auto</option>
-          <option value="D">Daily</option>
-          <option value="W">Weekly</option>
-          <option value="M">Monthly</option>
+          <option value="auto" disabled title="Temporarily disabled">auto (detect)</option>
+          <option value="D" disabled title="Temporarily disabled">Daily (D)</option>
+          <option value="W">Weekly (W)</option>
+          <option value="M">Monthly (M)</option>
         </select>
+        <p class="mt-1 text-xs text-slate-500">Daily and auto are temporarily disabled.</p>
       </div>
 
       <!-- How to fill unknown future regressor values -->
@@ -251,6 +301,9 @@ const apiBaseResolved = computed(() => props.apiBase ?? (import.meta as any).env
 const rows     = ref<Row[]>([])
 const headers  = ref<string[]>([])
 const fileName = ref<string>('')
+/** CONSTANTS PER FILE PREVIEWS **/
+const previewLimit = 10
+const previewRows = computed(() => rows.value.slice(0, previewLimit))
 
 /** Column mapping
  *  - group_by in UI is a single string (column name), but backend expects a LIST → wrap on submit.
@@ -267,10 +320,10 @@ const params = ref<{
   model_preference:string; horizon:number; confidence:number;
   frequency:'auto'|'D'|'W'|'M'; exog_future_policy:'zero'|'last'|'mean'
 }>({
-  model_preference:'auto', // 'auto' | 'prophet' | 'ets' | 'sarimax' | 'seasonal-naive' | 'auto-ets-sarimax'
+  model_preference:'prophet', // 'auto' | 'prophet' | 'ets' | 'sarimax' | 'seasonal-naive' | 'auto-ets-sarimax'
   horizon:30,              // future periods (# of D/W/M depending on frequency)
   confidence:0.8,          // 0.5..0.99 -> band width
-  frequency:'auto',        // override if your CSV cadence is known
+  frequency:'W',        // override if CSV cadence is known
   exog_future_policy:'last'// 'zero' | 'last' | 'mean' for future regressors
 })
 
@@ -284,7 +337,7 @@ type DemoItem = { id:string; name:string; url:string }
 const defaultDemoOptions = ref<DemoItem[]>([
   { id:'walmart-retail-sales', name:'Walmart Sales', url:'/demo/walmart_sales.csv' },
   { id:'retail-sales-multi-store', name:'WOmart Retail Sales', url:'/demo/WOmart_Data_Sales.csv' },
-  { id:'retail-forecasting', name:'Sales Dataset Superstore', url:'/demo/Sales_dataset.csv' }
+  { id:'retail-forecasting', name:'Sales Dataset Superstore', url:'/demo/sales_dataset.csv' }
 ])
 const demoOptions = computed<DemoItem[]>(() => (props.demoDatasets?.length ? props.demoDatasets! : defaultDemoOptions.value))
 const selectedDemoId = ref<string>('')
@@ -303,6 +356,11 @@ async function loadDemo(){
     const parsed = Papa.parse<Row>(text, { header:true, skipEmptyLines:true })
     rows.value = (parsed.data as Row[]) || []
     headers.value = parsed.meta.fields || []
+
+    // ✅ Auto-detect Date column
+    const detectedDate = autoDetectDateColumn(headers.value)
+    if (detectedDate) map.value.date = detectedDate
+
     fileName.value = `${currentDemo.value.name}.csv`
     if (map.value.group_by && !headers.value.includes(map.value.group_by)) map.value.group_by = ''
     runStore.value = ''
@@ -320,15 +378,29 @@ function readFile(file:File){
   fileName.value = file.name
   Papa.parse<Row>(file, {
     header:true, skipEmptyLines:true,
+    worker:true,
     complete: (res)=>{
       rows.value    = res.data
       headers.value = res.meta.fields || []
+      // ✅ Auto-detect Date column
+      const detectedDate = autoDetectDateColumn(headers.value)
+      if (detectedDate) map.value.date = detectedDate
       // If previous group_by doesn’t exist in new file, reset it
       if (map.value.group_by && !headers.value.includes(map.value.group_by)) map.value.group_by = ''
       runStore.value = ''
     }
   })
 }
+
+/** AUTO-DETECT DATE COLUMN */
+function autoDetectDateColumn(headers: string[]): string {
+  if (!headers?.length) return ''
+  const lower = headers.map(h => h.toLowerCase())
+  const candidates = ['date', 'ds', 'day', 'timestamp', 'datetime', 'order date', 'fecha', 'data']
+  const match = lower.find(h => candidates.includes(h))
+  return match ? headers[lower.indexOf(match)] : ''
+}
+
 
 /** RESET current dataset + mapping */
 function reset(){
@@ -394,14 +466,14 @@ async function submit(){
       schema: {
         date: map.value.date,
         target: map.value.target,
-        group_by: groupCol ? [groupCol] : null,       // <-- LIST here (fixes your 422)
+        group_by: groupCol ? [groupCol] : null,       // <-- LIST here (fixes my 422)
         regressors: (map.value.regressors || []).filter(Boolean)
       },
       params: {
-        model_preference: params.value.model_preference.toLowerCase(),
+        model_preference: 'prophet', //Forcing Prophet for now... I need to fix some issues with other models.
         horizon:    params.value.horizon,
         confidence: params.value.confidence,
-        frequency:  params.value.frequency,
+        frequency:  (['auto','D'].includes(params.value.frequency as any) ? 'W' : params.value.frequency),
         exog_future_policy: params.value.exog_future_policy
       }
     }

@@ -9,9 +9,28 @@
           <span class="text-sm font-semibold tracking-tight">Sales Forecasting App</span>
         </div>
         <div class="flex items-center gap-4 text-sm">
-          <a href="#" class="text-slate-600 hover:text-slate-900">Docs</a>
-          <a href="#" class="text-slate-600 hover:text-slate-900">Demo Data</a>
-          <a href="#" class="text-slate-600 hover:text-slate-900">GitHub</a>
+          <a
+            href="https://github.com/straccia75/sales-forecasting"
+            target="_blank"
+            rel="noopener"
+            class="flex items-center gap-1.5 text-slate-600 hover:text-slate-900"
+          >
+            <!-- GitHub logo -->
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              class="h-5 w-5"
+              aria-hidden="true"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M12 .5C5.65.5.5 5.65.5 12a11.5 11.5 0 007.86 10.94c.57.1.78-.25.78-.55 0-.27-.01-1-.02-1.96-3.2.7-3.88-1.54-3.88-1.54-.52-1.33-1.27-1.68-1.27-1.68-1.04-.7.08-.69.08-.69 1.14.08 1.74 1.17 1.74 1.17 1.02 1.75 2.68 1.25 3.33.96.1-.74.4-1.25.72-1.54-2.56-.29-5.25-1.28-5.25-5.67 0-1.25.45-2.28 1.17-3.08-.12-.29-.51-1.46.11-3.04 0 0 .96-.31 3.15 1.18a10.9 10.9 0 015.74 0c2.18-1.49 3.14-1.18 3.14-1.18.63 1.58.24 2.75.12 3.04.73.8 1.17 1.83 1.17 3.08 0 4.4-2.7 5.37-5.27 5.65.42.37.77 1.1.77 2.23 0 1.61-.01 2.91-.01 3.31 0 .3.2.65.79.54A11.5 11.5 0 0023.5 12C23.5 5.65 18.35.5 12 .5z"
+                clip-rule="evenodd"
+              />
+            </svg>
+            <span>GitHub</span>
+          </a>
         </div>
       </nav>
     </header>
@@ -20,7 +39,7 @@
     <section class="mx-auto max-w-7xl px-4 pt-8 pb-4">
       <h1 class="text-2xl font-bold tracking-tight">Forecast demand in minutes, not weeks.</h1>
       <p class="mt-1 text-sm text-slate-600">
-        Upload a CSV, map your columns, and generate interactive forecasts with confidence bands.
+        Upload a CSV or select a Demo Data, map columns, and generate interactive forecasts with confidence bands.
       </p>
     </section>
 
