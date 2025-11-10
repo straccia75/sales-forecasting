@@ -47,3 +47,76 @@ User
          ├── Data preprocessing
          ├── Prophet forecasting
          └── REST API responses
+
+
+## BACKEND SETUP
+
+# Clone the repository
+git clone https://github.com/straccia75/sales-forecasting.git
+cd sales-forecasting/backend
+
+# Create and activate a virtual environment
+python -m venv venv
+source venv/bin/activate   # on Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run FastAPI server
+uvicorn main:app --reload
+
+## FRONTEND SETUP
+
+cd ../frontend
+
+# Install dependencies
+npm install
+
+# Run development server
+npm run dev
+
+
+Your app will be available at:
+
+Frontend: http://localhost:3000
+
+Backend: http://localhost:8000
+
+
+📊 Usage
+
+Start both servers (frontend + backend).
+
+Open the app in your browser.
+
+Upload a CSV file (with date and sales columns) or choose a demo dataset.
+
+Click “Forecast” to create predictions.
+
+Explore interactive charts to analyze sales trends.
+
+🧾 Example CSV Format (The system will detect a Date column no matter what the name is...)
+date	sales
+2023-01-01	1500
+2023-01-02	1620
+2023-01-03	1740
+
+🌐 Deployment
+Service	Platform
+Frontend	Netlify
+
+Backend	Railway
+
+🪪 License $ Usage
+
+This project is **proprietary** and not open source.  
+All rights reserved © [Your Name], [Year].
+
+You may view the code, but **reproduction, modification, or redistribution** of any part of this project is **not permitted** without explicit written permission from the author.
+
+👨‍💻 Author
+
+Developed by [Your Name]
+📧 straccia75@gmail.com
+
+🌐 https://lmps.dev
