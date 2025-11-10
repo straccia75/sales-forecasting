@@ -110,13 +110,13 @@ Backend	Railway
 🪪 License $ Usage
 
 This project is **proprietary** and not open source.  
-All rights reserved © [Your Name], [Year].
+All rights reserved © Luigi Straccia, 2025.
 
 You may view the code, but **reproduction, modification, or redistribution** of any part of this project is **not permitted** without explicit written permission from the author.
 
 👨‍💻 Author
 
-Developed by [Your Name]
+Developed by Luigi Straccia
 📧 straccia75@gmail.com
 
 🌐 https://lmps.dev
